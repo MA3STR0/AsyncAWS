@@ -44,3 +44,14 @@ class SQSRequest(HTTPRequest):
         kwargs['headers'] = headers
         super(SQSRequest, self).__init__(*args, **kwargs)
 
+    def sign(self, key, msg):
+        return hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()
+
+    def getSignatureKey(self, key, dateStamp, regionName, serviceName):
+        kDate = self.sign(('AWS4' + key).encode('utf-8'), dateStamp)
+        kRegion = self.sign(kDate, regionName)
+        kService = self.sign(kRegion, serviceName)
+        kSigning = self.sign(kService, 'aws4_request')
+        return kSigning
+
+
