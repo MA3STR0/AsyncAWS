@@ -21,5 +21,26 @@ class SQSRequest(HTTPRequest):
         canonical_uri = url.split('://')[1].split('.com')[1].split('?')[0]
         service = 'sqs'
         region = kwargs.get('region', 'eu-west-1')
+
+        amz_date = t.strftime('%Y%m%dT%H%M%SZ')
+        datestamp = t.strftime('%Y%m%d')
+
+        canonical_headers = 'host:' + host + '\n' + 'x-amz-date:' + amz_date + '\n'
+        signed_headers = 'host;x-amz-date'
+        payload_hash = hashlib.sha256('').hexdigest()
+
+        canonical_request = method + '\n' + canonical_uri + '\n' + canonical_querystring + '\n' + canonical_headers + '\n' + signed_headers + '\n' + payload_hash
+        algorithm = 'AWS4-HMAC-SHA256'
+        credential_scope = datestamp + '/' + region + '/' + service + '/' + 'aws4_request'
+        string_to_sign = algorithm + '\n' +  amz_date + '\n' +  credential_scope + '\n' +  hashlib.sha256(canonical_request).hexdigest()
+        signing_key = self.getSignatureKey(kwargs['secret_key'], datestamp, region, service)
+        signature = hmac.new(signing_key, (string_to_sign).encode('utf-8'), hashlib.sha256).hexdigest()
+        authorization_header = algorithm + ' ' + 'Credential=' + kwargs['access_key'] + '/' + credential_scope + ', ' +  'SignedHeaders=' + signed_headers + ', ' + 'Signature=' + signature
+
+        del kwargs['access_key']
+        del kwargs['secret_key']
+        headers = kwargs.get('headers', {})
+        headers.update({'x-amz-date':amz_date, 'Authorization':authorization_header})
+        kwargs['headers'] = headers
         super(SQSRequest, self).__init__(*args, **kwargs)
 
