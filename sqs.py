@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from tornado.httpclient import AsyncHTTPClient, HTTPRequest, HTTPClient
 from tornado.httputil import url_concat
 import datetime
