@@ -55,3 +55,10 @@ class SQSRequest(HTTPRequest):
         return kSigning
 
 
+class SQS(object):
+    def __init__(self, access_key, secret_key):
+        self.__access_key = access_key
+        self.__secret_key = secret_key
+        self._http = AsyncHTTPClient()
+
+
