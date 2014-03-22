@@ -15,3 +15,8 @@ For example?
 
 Then why can't I just use AWS HTTP API directly from my XY-framework?
 - Becuase it's damn complicated. You can, but you don't want to. So I'll do it for you.
+
+What is implemented so far
+--------------------------
+
+Currently only SQS handler can be used. It is under active development, so feel free to report bugs and suggestions.
