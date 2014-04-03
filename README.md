@@ -20,3 +20,8 @@ What is implemented so far
 --------------------------
 
 Currently only SQS handler can be used. It is under active development, so feel free to report bugs and suggestions.
+
+Documentation
+-------------
+
+`SQSRequest` should be used to simplify AWS/SQS HTTP API requests, as it contains all necessary AWS-specific headers with checksums, signatures etc. Just write the request body, and headers will be auto-generated.
