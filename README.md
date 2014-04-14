@@ -26,5 +26,8 @@ Documentation
 
 `SQSRequest` - class that should be used to simplify AWS/SQS HTTP API requests, as it contains all necessary AWS-specific headers with checksums, signatures etc. Just write the request body, and headers will be auto-generated.
 
-`SQS` - class that will contain methods for typical SQS-operations, like send-message, delete-message, etc
+`SQS` - class with methods for calling SQS commands. 
+  - `listen_queue` makes long-polling request to SQS api and waits for messages in queue
+  - `delete_message` removes message from queue by `receipt_handle`
+  - `send_message` adds new message to the queue
 
