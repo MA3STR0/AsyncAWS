@@ -92,3 +92,16 @@ class SQS(object):
                              secret_key=self.__secret_key)
         return self._http.fetch(request)
 
+    def send_message(self, queue_uri, message_body):
+        params = {
+            "Action": "SendMessage",
+            "MessageBody": message_body,
+            "Version": "2012-11-05",
+            "SignatureMethod": "HmacSHA256",
+            "SignatureVersion": 4,
+        }
+        full_url = url_concat(queue_uri, params)
+        request = SQSRequest(full_url,
+                             access_key=self.__access_key,
+                             secret_key=self.__secret_key)
+        return self._http.fetch(request)
