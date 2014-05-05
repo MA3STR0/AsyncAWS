@@ -5,13 +5,27 @@ import hashlib
 import hmac
 
 
+def sign(key, msg):
+    """Make sha256 signature"""
+    return hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()
+
+
+def get_signature_key(key, date_stamp, region_name, service_name):
+    """Sign all params sequentially"""
+    k_date = sign(('AWS4' + key).encode('utf-8'), date_stamp)
+    k_region = sign(k_date, region_name)
+    k_service = sign(k_region, service_name)
+    k_signing = sign(k_service, 'aws4_request')
+    return k_signing
+
+
 class AWSRequest(HTTPRequest):
     """
     Generic AWS Adapter for Tornado HTTP request
     Generates v4 signature and sets all required headers
     """
     def __init__(self, *args, **kwargs):
-        t = datetime.datetime.utcnow()
+        utc_time = datetime.datetime.utcnow()
         service = kwargs['service']
         region = kwargs['region']
         method = kwargs.get('method', 'GET')
@@ -26,8 +40,8 @@ class AWSRequest(HTTPRequest):
         # reset args, everything is passed with kwargs
         args = tuple()
         # prepare timestamps
-        amz_date = t.strftime('%Y%m%dT%H%M%SZ')
-        date_stamp = t.strftime('%Y%m%d')
+        amz_date = utc_time.strftime('%Y%m%dT%H%M%SZ')
+        date_stamp = utc_time.strftime('%Y%m%d')
         # prepare aws-specific headers
         canonical_headers = 'host:{host}\nx-amz-date:{amz_date}\n'.format(
             host=host, amz_date=amz_date)
@@ -50,8 +64,8 @@ class AWSRequest(HTTPRequest):
         string_to_sign = '{algorithm}\n{amz_date}\n{scope}\n{hash}'.format(
             algorithm=algorithm, amz_date=amz_date, scope=scope,
             hash=hashlib.sha256(canonical_request).hexdigest())
-        sign_key = self.getSignatureKey(kwargs['secret_key'],
-                                        date_stamp, region, service)
+        sign_key = get_signature_key(kwargs['secret_key'],
+                                     date_stamp, region, service)
         hash_tuple = (sign_key, string_to_sign.encode('utf-8'), hashlib.sha256)
         signature = hmac.new(*hash_tuple).hexdigest()
         authorization_header = (
@@ -68,17 +82,8 @@ class AWSRequest(HTTPRequest):
         del kwargs['region']
         # update headers
         headers = kwargs.get('headers', {})
-        headers.update({'x-amz-date':amz_date, 'Authorization':authorization_header})
+        headers.update({'x-amz-date': amz_date,
+                        'Authorization': authorization_header})
         kwargs['headers'] = headers
         # init Tornado HTTPRequest
         super(AWSRequest, self).__init__(*args, **kwargs)
-
-    def sign(self, key, msg):
-        return hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()
-
-    def getSignatureKey(self, key, dateStamp, regionName, serviceName):
-        kDate = self.sign(('AWS4' + key).encode('utf-8'), dateStamp)
-        kRegion = self.sign(kDate, regionName)
-        kService = self.sign(kRegion, serviceName)
-        kSigning = self.sign(kService, 'aws4_request')
-        return kSigning
