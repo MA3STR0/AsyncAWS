@@ -1,107 +1,181 @@
-#!/usr/bin/env python
-
-from tornado.httpclient import AsyncHTTPClient, HTTPRequest, HTTPClient
+from tornado.httpclient import AsyncHTTPClient, HTTPClient
 from tornado.httputil import url_concat
-import datetime
-import hashlib
-import hmac
-
-
-class SQSRequest(HTTPRequest):
-    """SQS AWS Adapter for Tornado HTTP request"""
-    def __init__(self, *args, **kwargs):
-        t = datetime.datetime.utcnow()
-        method = kwargs.get('method', 'GET')
-        url = kwargs.get('url') or args[0]
-        params = sorted(url.split('?')[1].split('&'))
-        canonical_querystring = '&'.join(params)
-        kwargs['url'] = url.split('?')[0] + '?' + canonical_querystring
-        args = tuple()
-        host = url.split('://')[1].split('/')[0]
-        canonical_uri = url.split('://')[1].split('.com')[1].split('?')[0]
-        service = 'sqs'
-        region = kwargs.get('region', 'eu-west-1')
-
-        amz_date = t.strftime('%Y%m%dT%H%M%SZ')
-        datestamp = t.strftime('%Y%m%d')
-
-        canonical_headers = 'host:' + host + '\n' + 'x-amz-date:' + amz_date + '\n'
-        signed_headers = 'host;x-amz-date'
-        payload_hash = hashlib.sha256('').hexdigest()
-
-        canonical_request = method + '\n' + canonical_uri + '\n' + canonical_querystring + '\n' + canonical_headers + '\n' + signed_headers + '\n' + payload_hash
-        algorithm = 'AWS4-HMAC-SHA256'
-        credential_scope = datestamp + '/' + region + '/' + service + '/' + 'aws4_request'
-        string_to_sign = algorithm + '\n' +  amz_date + '\n' +  credential_scope + '\n' +  hashlib.sha256(canonical_request).hexdigest()
-        signing_key = self.getSignatureKey(kwargs['secret_key'], datestamp, region, service)
-        signature = hmac.new(signing_key, (string_to_sign).encode('utf-8'), hashlib.sha256).hexdigest()
-        authorization_header = algorithm + ' ' + 'Credential=' + kwargs['access_key'] + '/' + credential_scope + ', ' +  'SignedHeaders=' + signed_headers + ', ' + 'Signature=' + signature
-
-        del kwargs['access_key']
-        del kwargs['secret_key']
-        headers = kwargs.get('headers', {})
-        headers.update({'x-amz-date':amz_date, 'Authorization':authorization_header})
-        kwargs['headers'] = headers
-        super(SQSRequest, self).__init__(*args, **kwargs)
-
-    def sign(self, key, msg):
-        return hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()
-
-    def getSignatureKey(self, key, dateStamp, regionName, serviceName):
-        kDate = self.sign(('AWS4' + key).encode('utf-8'), dateStamp)
-        kRegion = self.sign(kDate, regionName)
-        kService = self.sign(kRegion, serviceName)
-        kSigning = self.sign(kService, 'aws4_request')
-        return kSigning
+from lxml import objectify
+from core import AWSRequest
 
 
 class SQS(object):
-    def __init__(self, access_key, secret_key):
+    def __init__(self, access_key, secret_key, region, async=True):
+        self.region = region
         self.__access_key = access_key
         self.__secret_key = secret_key
-        self._http = AsyncHTTPClient()
+        self._http = AsyncHTTPClient() if async else HTTPClient()
+        self.service = 'sqs'
+        self.common_params = {
+            "Version": "2012-11-05",
+            "SignatureMethod": "HmacSHA256",
+            "SignatureVersion": 4
+        }
 
-    def listen_queue(self, queue_uri):
+    @staticmethod
+    def parse(response):
+        """
+        Parse XML string response from AWS and return Python objects
+        :param resp: raw aws response string
+        :return: Response values converted to Python objects
+        """
+        def _parse_GetQueueAttributesResult(root):
+            """helper to parse get_queue_attributes response"""
+            results = {}
+            for attr in root.GetQueueAttributesResult.Attribute:
+                results[attr.Name] = attr.Value
+            return results
+
+        response_mapping = {
+            'CreateQueueResult': lambda x: x.CreateQueueResult.QueueUrl,
+            'GetQueueAttributesResult': _parse_GetQueueAttributesResult
+        }
+        root = objectify.fromstring(response)
+        for key, extract_func in response_mapping.items():
+            if hasattr(root, key):
+                return extract_func(root)
+        return None
+
+    def listen_queue(self, queue_uri, wait_time=15, max_messages=1,
+                     visibility_timeout=300):
+        """
+        Retrieves one or more messages from the specified queue.
+        Long poll support is enabled by using the WaitTimeSeconds parameter.
+        http://docs.aws.amazon.com/AWSSimpleQueueService/
+            latest/APIReference/API_ReceiveMessage.html
+        :param queue_uri: The URL of the Amazon SQS queue to take action on.
+        :param wait_time: The duration (in seconds) for which the call will
+            wait for a message to arrive in the queue before returning.
+            If a message is available, the call will return sooner.
+        :param max_messages: The maximum number of messages to return.
+        :param visibility_timeout: The duration (in seconds) that the received
+            messages are hidden from subsequent retrieve requests after being
+            retrieved by a ReceiveMessage request.
+        :return: A list of messages.
+        """
         params = {
             "Action": "ReceiveMessage",
-            "WaitTimeSeconds": 15,
-            "MaxNumberOfMessages": 1,
-            "VisibilityTimeout": 300,
+            "WaitTimeSeconds": wait_time,
+            "MaxNumberOfMessages": max_messages,
+            "VisibilityTimeout": visibility_timeout,
             "AttributeName": "All",
-            "Version": "2012-11-05",
-            "SignatureMethod": "HmacSHA256",
-            "SignatureVersion": 4,
         }
         full_url = url_concat(queue_uri, params)
-        request = SQSRequest(full_url,
+        request = AWSRequest(full_url, service=self.service, region=self.region,
                              access_key=self.__access_key,
                              secret_key=self.__secret_key)
         return self._http.fetch(request)
 
-    def delete_message(self, queue_uri, receipt_handle):
-        params = {
-            "Action": "DeleteMessage",
-            "ReceiptHandle": receipt_handle,
-            "Version": "2012-11-05",
-            "SignatureMethod": "HmacSHA256",
-            "SignatureVersion": 4,
-        }
-        full_url = url_concat(queue_uri, params)
-        request = SQSRequest(full_url,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request)
-
-    def send_message(self, queue_uri, message_body):
+    def send_message(self, queue_url, message_body):
+        """
+        Delivers a message to the specified queue.
+        http://docs.aws.amazon.com/AWSSimpleQueueService/latest/
+            APIReference/API_SendMessage.html
+        :param queue_url: The URL of the Amazon SQS queue to take action on.
+        :param message_body: The message to send. String maximum 256 KB in size.
+        :return: MD5OfMessageAttributes, MD5OfMessageBody, MessageId
+        """
         params = {
             "Action": "SendMessage",
             "MessageBody": message_body,
-            "Version": "2012-11-05",
-            "SignatureMethod": "HmacSHA256",
-            "SignatureVersion": 4,
-        }
-        full_url = url_concat(queue_uri, params)
-        request = SQSRequest(full_url,
+            }
+        full_url = url_concat(queue_url, params)
+        request = AWSRequest(full_url, service=self.service, region=self.region,
                              access_key=self.__access_key,
                              secret_key=self.__secret_key)
         return self._http.fetch(request)
+
+    def delete_message(self, queue_url, receipt_handle):
+        """
+        Deletes the specified message from the specified queue.
+        Specify the message by using the message's receipt handle, not ID.
+        http://docs.aws.amazon.com/AWSSimpleQueueService/latest/
+            APIReference/API_DeleteMessage.html
+        :param queue_url: The URL of the Amazon SQS queue to take action on.
+        :param receipt_handle: The receipt handle associated with the message.
+        :return: Request ID
+        """
+        params = {
+            "Action": "DeleteMessage",
+            "ReceiptHandle": receipt_handle,
+        }
+        full_url = url_concat(queue_url, params)
+        request = AWSRequest(full_url, service=self.service, region=self.region,
+                             access_key=self.__access_key,
+                             secret_key=self.__secret_key)
+        return self._http.fetch(request)
+
+    def create_queue(self, queue_name):
+        """
+        Creates a new queue, or returns the URL of an existing one.
+        To successfully create a new queue, a name that is unique within
+        the scope of own queues should be provided.
+        http://docs.aws.amazon.com/AWSSimpleQueueService/latest/
+            APIReference/API_CreateQueue.html
+        :param queue_name: The name for the queue to be created.
+        :return: QueueUrl - the URL for the created Amazon SQS queue.
+        """
+        params = {
+            "Action": "CreateQueue",
+            "QueueName": queue_name,
+        }
+        url = "http://{service}.{region}.amazonaws.com/".format(
+            service=self.service, region=self.region)
+        full_url = url_concat(url, params)
+        request = AWSRequest(full_url, service=self.service, region=self.region,
+                             access_key=self.__access_key,
+                             secret_key=self.__secret_key)
+        return self._http.fetch(request)
+
+    def delete_queue(self, queue_url):
+        """
+        Deletes the queue specified by the queue URL, regardless of whether
+        the queue is empty. If the specified queue does not exist, SQS
+        returns a successful response.
+        http://docs.aws.amazon.com/AWSSimpleQueueService/latest/
+            APIReference/API_DeleteQueue.html
+        :param queue_url: The URL of the Amazon SQS queue to take action on.
+        :return: Request ID
+        """
+        params = {
+            "Action": "DeleteQueue",
+            }
+        full_url = url_concat(queue_url, params)
+        request = AWSRequest(full_url, service=self.service, region=self.region,
+                             access_key=self.__access_key,
+                             secret_key=self.__secret_key)
+        return self._http.fetch(request)
+
+    def get_queue_attributes(self, queue_url, attributes=('all',)):
+        """
+        Gets attributes for the specified queue.
+        The following attributes are supported:
+        All (returns all values), ApproximateNumberOfMessages,
+        ApproximateNumberOfMessagesNotVisible,
+        VisibilityTimeout, CreatedTimestamp, LastModifiedTimestamp, Policy,
+        MaximumMessageSize, MessageRetentionPeriod, QueueArn,
+        ApproximateNumberOfMessagesDelayed, DelaySeconds,
+        ReceiveMessageWaitTimeSeconds, RedrivePolicy
+        http://docs.aws.amazon.com/AWSSimpleQueueService/latest/
+            APIReference/API_GetQueueAttributes.html
+        :param queue_url: The URL of the Amazon SQS queue to take action on.
+        :param attributes: A list of attributes to retrieve, ['all'] by default.
+        :return: A map of attributes to the respective values.
+        """
+        params = {
+            "Action": "GetQueueAttributes",
+            }
+        for i, attr in enumerate(attributes):
+            params['AttributeName.%s' % (i + 1)] = attr
+
+        full_url = url_concat(queue_url, params)
+        request = AWSRequest(full_url, service=self.service, region=self.region,
+                             access_key=self.__access_key,
+                             secret_key=self.__secret_key)
+        return self._http.fetch(request)
+
