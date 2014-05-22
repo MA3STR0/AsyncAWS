@@ -14,7 +14,7 @@ class SNS(object):
         self.common_params = {
             "Version": "2010-03-31",
             "SignatureMethod": "HmacSHA256",
-            "SignatureVersion": 4,
+            "SignatureVersion": 4
         }
 
     @staticmethod
@@ -46,7 +46,7 @@ class SNS(object):
         """
         params = {
             "Name": name,
-            "Action": "CreateTopic",
+            "Action": "CreateTopic"
         }
         params.update(self.common_params)
         url = "http://{service}.{region}.amazonaws.com/".format(
@@ -75,7 +75,31 @@ class SNS(object):
             "Endpoint": endpoint,
             "Protocol": protocol,
             "TopicArn": topic_arn,
-            "Action": "Subscribe",
+            "Action": "Subscribe"
+        }
+        params.update(self.common_params)
+        url = "http://{service}.{region}.amazonaws.com/".format(
+            service=self.service, region=self.region)
+        full_url = url_concat(url, params)
+        request = AWSRequest(full_url, service=self.service, region=self.region,
+                             access_key=self.__access_key,
+                             secret_key=self.__secret_key)
+        return self._http.fetch(request)
+
+    def confirm_subscription(self, topic_arn, token):
+        """
+        Verifies an endpoint owner's intent to receive messages by validating
+        the token sent to the endpoint by an earlier Subscribe action.
+        If the token is valid, the action creates a new subscription
+        and returns its Amazon Resource Name (ARN)
+        :param topic_arn: The ARN of the topic for subscription.
+        :param token: Short-lived token returned during the Subscribe action.
+        :return: SubscriptionArn - The ARN of the created subscription.
+        """
+        params = {
+            "TopicArn": topic_arn,
+            "Token": token,
+            "Action": "ConfirmSubscription"
         }
         params.update(self.common_params)
         url = "http://{service}.{region}.amazonaws.com/".format(
