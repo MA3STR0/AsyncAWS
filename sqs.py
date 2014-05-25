@@ -26,14 +26,30 @@ class SQS(object):
         """
         def _parse_GetQueueAttributesResult(root):
             """helper to parse get_queue_attributes response"""
-            results = {}
+            result = {}
             for attr in root.GetQueueAttributesResult.Attribute:
-                results[attr.Name] = attr.Value
-            return results
+                result[attr.Name] = attr.Value
+            return result
+
+        def _parse_ReceiveMessageResult(root):
+            """helper to parse SQS message XML"""
+            if root.ReceiveMessageResult == '':
+                return None
+            message = root.ReceiveMessageResult.Message
+            result = {
+                'Body': message.Body,
+                'MD5OfBody': message.MD5OfBody,
+                'ReceiptHandle': message.ReceiptHandle,
+                'Attributes': {}
+            }
+            for attr in message.Attribute:
+                result['Attributes'][attr.Name] = attr.Value
+            return result
 
         response_mapping = {
             'CreateQueueResult': lambda x: x.CreateQueueResult.QueueUrl,
-            'GetQueueAttributesResult': _parse_GetQueueAttributesResult
+            'GetQueueAttributesResult': _parse_GetQueueAttributesResult,
+            'ReceiveMessageResult': _parse_ReceiveMessageResult,
         }
         root = objectify.fromstring(response)
         for key, extract_func in response_mapping.items():
@@ -56,7 +72,7 @@ class SQS(object):
         :param visibility_timeout: The duration (in seconds) that the received
             messages are hidden from subsequent retrieve requests after being
             retrieved by a ReceiveMessage request.
-        :return: A list of messages.
+        :return: A message or a list of messages.
         """
         params = {
             "Action": "ReceiveMessage",
