@@ -25,11 +25,12 @@ class AWSRequest(HTTPRequest):
     Generates v4 signature and sets all required headers
     """
     def __init__(self, *args, **kwargs):
-        utc_time = datetime.datetime.utcnow()
         service = kwargs['service']
         region = kwargs['region']
         method = kwargs.get('method', 'GET')
         url = kwargs.get('url') or args[0]
+        # tornado url_concat encodes spaces as '+', but AWS expects '%20'
+        url = url.replace('+', '%20')
         parsed_url = urlparse(url)
         host = parsed_url.netloc
         canonical_uri = parsed_url.path
@@ -40,12 +41,14 @@ class AWSRequest(HTTPRequest):
         # reset args, everything is passed with kwargs
         args = tuple()
         # prepare timestamps
+        utc_time = datetime.datetime.utcnow()
         amz_date = utc_time.strftime('%Y%m%dT%H%M%SZ')
         date_stamp = utc_time.strftime('%Y%m%d')
         # prepare aws-specific headers
         canonical_headers = 'host:{host}\nx-amz-date:{amz_date}\n'.format(
             host=host, amz_date=amz_date)
         signed_headers = 'host;x-amz-date'
+        # for GET requests payload is empty
         payload_hash = hashlib.sha256('').hexdigest()
 
         canonical_request = (
