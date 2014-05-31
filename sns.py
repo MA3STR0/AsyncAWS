@@ -20,15 +20,28 @@ class SNS(object):
     @staticmethod
     def parse(response):
         """
-        Parse XML string response from AWS and return Python value
-        :param resp: raw aws response string
-        :return: Python string, boolean or None
+        Accepts XML response from AWS and converts it to common Python objects.
+
+        As Python 2 has no "yield from" syntax, all async methods for AWS API
+        have to return Futures. After yielding in coroutine they become
+        Tornado Response objects containing raw XML body returned by AWS.
+        This method helps you to avoid manual response parsing, it accepts
+        response object, detects its type and casts it to common Python object
+        like dict, list or string. Typical usage will be::
+
+            response = yield sns.create_topic(name)
+            # response.body has raw XML from AWS API
+            topic_arn = sns.parse(response)
+            # now response is parsed and topic_arn has a normal Python string.
+
+        :param response: raw response from AWS
+        :return: Response values converted to common Python objects
         """
         response_mapping = {
-            'CreateTopicResult': lambda x: x.CreateTopicResult.TopicArn,
-            'SubscribeResult': lambda x: x.SubscribeResult.SubscriptionArn
+            'CreateTopicResult': lambda x: x.CreateTopicResult.TopicArn.text,
+            'SubscribeResult': lambda x: x.SubscribeResult.SubscriptionArn.text
         }
-        root = objectify.fromstring(response)
+        root = objectify.fromstring(response.body)
         for key, extract_func in response_mapping.items():
             if hasattr(root, key):
                 return extract_func(root)
