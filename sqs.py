@@ -271,3 +271,27 @@ class SQS(object):
                              access_key=self.__access_key,
                              secret_key=self.__secret_key)
         return self._http.fetch(request)
+
+    # Helpers
+    def allow_sns_topic(self, queue_url, queue_arn, topic_arn):
+        """
+        Helper to grant sns topic permission to publish messages to queue.
+        Not an AWS API implementation.
+
+        :param queue_url: url of queue to get messages
+        :param queue_arn: arn of queue to get messages
+        :param topic_arn: arn of topic to publish messages
+        :return: None
+        """
+        sid = hashlib.md5((topic_arn + queue_arn).encode('utf-8')).hexdigest()
+        statement = {'Action': 'SQS:SendMessage',
+                     'Effect': 'Allow',
+                     'Principal': {'AWS': '*'},
+                     'Resource': queue_arn,
+                     'Sid': sid,
+                     'Condition': {'StringLike': {'aws:SourceArn': topic_arn}}}
+        policy = {'Version': '2008-10-17',
+                  'Id': queue_arn + '/SQSDefaultPolicy',
+                  'Statement': [statement]}
+        return self.set_queue_attributes(queue_url,
+                                         {"Policy": json.dumps(policy)})
