@@ -240,3 +240,34 @@ class SQS(object):
                              access_key=self.__access_key,
                              secret_key=self.__secret_key)
         return self._http.fetch(request, raise_error=False)
+
+    def add_permission(self, queue_url, account_ids, action_names, label):
+        """
+        Adds a permission to a queue for a specific principal.
+        This allows for sharing access to the queue.
+        AWS API: AddPermission_
+
+        :param queue_url: The URL of the Amazon SQS queue to take action on.
+        :param account_ids: List of AWS account numbers to grant a permission.
+        :param action_names: List of actions the client wants to allow for the
+            specified principal. The following are valid values: *, SendMessage,
+            ReceiveMessage, DeleteMessage, ChangeMessageVisibility,
+            GetQueueAttributes, GetQueueUrl.
+        :param label: The unique identification of the permission.
+        :return: Request ID
+        """
+        params = {
+            "Action": "AddPermission",
+            "Label": label,
+            }
+        for i, acc_id in enumerate(account_ids):
+            params['AWSAccountId.%s' % (i + 1)] = acc_id
+        for i, name in enumerate(action_names):
+            params['ActionName.%s' % (i + 1)] = name
+
+        params.update(self.common_params)
+        full_url = url_concat(queue_url, params)
+        request = AWSRequest(full_url, service=self.service, region=self.region,
+                             access_key=self.__access_key,
+                             secret_key=self.__secret_key)
+        return self._http.fetch(request)
