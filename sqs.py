@@ -218,3 +218,25 @@ class SQS(object):
                              secret_key=self.__secret_key)
         return self._http.fetch(request)
 
+    def set_queue_attributes(self, queue_url, attributes={}):
+        """
+        Sets the value of one or more queue attributes.
+        AWS API: SetQueueAttributes_
+
+        :param attributes: dict of attribute names and values.
+        :param queue_url: The URL of the Amazon SQS queue to take action on.
+        :return: Request ID
+        """
+        params = {
+            "Action": "SetQueueAttributes",
+        }
+        for i, (key, value) in enumerate(attributes.items()):
+            params['Attribute.Name'] = key
+            params['Attribute.Value'] = value
+
+        params.update(self.common_params)
+        full_url = url_concat(queue_url, params)
+        request = AWSRequest(full_url, service=self.service, region=self.region,
+                             access_key=self.__access_key,
+                             secret_key=self.__secret_key)
+        return self._http.fetch(request, raise_error=False)
