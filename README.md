@@ -1,8 +1,8 @@
 AsyncAWS
 ========
 
-Asynchronous AWS library in Python
-----------------------------------
+Asynchronous AWS library for Python
+-----------------------------------
 
 Why yet another Python AWS library, if there is Boto?
 - Because Boto is blocking, and asynchronous IO rocks.
