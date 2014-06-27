@@ -5,6 +5,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Virtual Env
+venv
+
 # Distribution / packaging
 .Python
 env/
@@ -44,6 +47,9 @@ coverage.xml
 
 # Rope
 .ropeproject
+
+# Idea
+.idea
 
 # Django stuff:
 *.log
