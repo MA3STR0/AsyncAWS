@@ -1,5 +1,9 @@
-from tornado.httpclient import HTTPRequest
+from tornado.httpclient import HTTPRequest, HTTPClient, AsyncHTTPClient
+from tornado.ioloop import IOLoop
+from tornado.httputil import url_concat
+from concurrent.futures import Future
 from urlparse import urlparse
+from lxml import objectify
 import datetime
 import hashlib
 import hmac
@@ -90,3 +94,31 @@ class AWSRequest(HTTPRequest):
         kwargs['headers'] = headers
         # init Tornado HTTPRequest
         super(AWSRequest, self).__init__(*args, **kwargs)
+
+
+class AWS(object):
+    """
+    Generic class for AWS API implementations: SQS, SNS, etc
+    """
+    def __init__(self, access_key, secret_key, region, async=True):
+        self.region = region
+        self.__access_key = access_key
+        self.__secret_key = secret_key
+        self._http = AsyncHTTPClient() if async else HTTPClient()
+
+    def _process(self, url, params, service, parse_function):
+        """Prepare request and result parsing callback"""
+        full_url = url_concat(url, params)
+        request = AWSRequest(full_url, service=service, region=self.region,
+                             access_key=self.__access_key,
+                             secret_key=self.__secret_key)
+        ioloop = IOLoop.current()
+        final_result = Future()
+
+        def inject_result(future):
+            raw_response = future.result().body
+            xml_root = objectify.fromstring(raw_response)
+            final_result.set_result(parse_function(xml_root))
+
+        ioloop.add_future(self._http.fetch(request), inject_result)
+        return final_result
