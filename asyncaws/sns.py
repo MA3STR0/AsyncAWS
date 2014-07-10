@@ -1,51 +1,18 @@
-from tornado.httpclient import AsyncHTTPClient, HTTPClient
-from tornado.httputil import url_concat
-from lxml import objectify
-from core import AWSRequest
+from core import AWS
 
 
-class SNS(object):
-    def __init__(self, access_key, secret_key, region, async=True):
-        self.region = region
-        self.__access_key = access_key
-        self.__secret_key = secret_key
-        self._http = AsyncHTTPClient() if async else HTTPClient()
-        self.service = 'sns'
-        self.common_params = {
-            "Version": "2010-03-31",
-            "SignatureMethod": "HmacSHA256",
-            "SignatureVersion": 4
-        }
-
-    @staticmethod
-    def parse(response):
-        """
-        Accepts XML response from AWS and converts it to common Python objects.
-
-        As Python 2 has no "yield from" syntax, all async methods for AWS API
-        have to return Futures. After yielding in coroutine they become
-        Tornado Response objects containing raw XML body returned by AWS.
-        This method helps you to avoid manual response parsing, it accepts
-        response object, detects its type and casts it to common Python object
-        like dict, list or string. Typical usage will be::
-
-            response = yield sns.create_topic(name)
-            # response.body has raw XML from AWS API
-            topic_arn = sns.parse(response)
-            # now response is parsed and topic_arn has a normal Python string.
-
-        :param response: raw response from AWS
-        :return: Response values converted to common Python objects
-        """
-        response_mapping = {
-            'CreateTopicResult': lambda x: x.CreateTopicResult.TopicArn.text,
-            'SubscribeResult': lambda x: x.SubscribeResult.SubscriptionArn.text
-        }
-        root = objectify.fromstring(response.body)
-        for key, extract_func in response_mapping.items():
-            if hasattr(root, key):
-                return extract_func(root)
-        return None
+class SNS(AWS):
+    """
+    :param access_key: AWS_ACCESS_KEY_ID
+    :param secret_key: AWS_SECRET_ACCESS_KEY
+    :param region: region name as string
+    :param async: True by default, indicates that AsyncHTTPClient should
+        be used. Otherwise HTTPClient (synchronous). Useful for debugging.
+    """
+    common_params = {
+        "Version": "2010-03-31",
+    }
+    service = 'sns'
 
     def create_topic(self, name):
         """
@@ -53,7 +20,8 @@ class SNS(object):
         This action is idempotent, so if the requester already owns
         a topic with the specified name, that topic's ARN
         is returned without creating a new topic.
-        http://docs.aws.amazon.com/sns/latest/APIReference/API_CreateTopic.html
+        AWS API: CreateTopic_
+
         :param name: The name of the topic to create.
         :return: TopicArn - The Amazon Resource Name assigned to the topic.
         """
@@ -64,23 +32,21 @@ class SNS(object):
         params.update(self.common_params)
         url = "http://{service}.{region}.amazonaws.com/".format(
             service=self.service, region=self.region)
-        full_url = url_concat(url, params)
-        request = AWSRequest(full_url, service=self.service, region=self.region,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request)
+        parse_function = lambda root: root.CreateTopicResult.TopicArn.text
+        return self._process(url, params, self.service, parse_function)
 
     def subscribe(self, endpoint, topic_arn, protocol):
         """
         Prepares to subscribe an endpoint by sending the endpoint
         a confirmation message. To actually create a subscription,
         the endpoint owner must call the ConfirmSubscription action
-        with the token from the confirmation message.
-        http://docs.aws.amazon.com/sns/latest/APIReference/API_Subscribe.html
+        with the token from the confirmation
+        AWS API: Subscribe_
+
         :param endpoint: The endpoint to receive notifications.
         :param topic_arn: The ARN of the topic to subscribe to.
         :param protocol: The protocol to use (http, email, sms, sqs etc)
-        :return: ARN of the subscription, if the service was able to create it
+        :return: SubscriptionARN, if the service was able to create it
             immediately (without requiring endpoint owner confirmation).
 
         """
@@ -93,18 +59,17 @@ class SNS(object):
         params.update(self.common_params)
         url = "http://{service}.{region}.amazonaws.com/".format(
             service=self.service, region=self.region)
-        full_url = url_concat(url, params)
-        request = AWSRequest(full_url, service=self.service, region=self.region,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request)
+        parse_function = lambda root: root.SubscribeResult.SubscriptionArn.text
+        return self._process(url, params, self.service, parse_function)
 
     def confirm_subscription(self, topic_arn, token):
         """
         Verifies an endpoint owner's intent to receive messages by validating
         the token sent to the endpoint by an earlier Subscribe action.
         If the token is valid, the action creates a new subscription
-        and returns its Amazon Resource Name (ARN)
+        and returns its Amazon Resource Name (ARN).
+        AWS API: ConfirmSubscription_
+
         :param topic_arn: The ARN of the topic for subscription.
         :param token: Short-lived token returned during the Subscribe action.
         :return: SubscriptionArn - The ARN of the created subscription.
@@ -117,8 +82,42 @@ class SNS(object):
         params.update(self.common_params)
         url = "http://{service}.{region}.amazonaws.com/".format(
             service=self.service, region=self.region)
-        full_url = url_concat(url, params)
-        request = AWSRequest(full_url, service=self.service, region=self.region,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request)
+
+        def parse_function():
+            import ipdb;ipdb.set_trace()
+        return self._process(url, params, self.service, parse_function)
+
+    def publish(self, message, subject, topic_arn, target_arn=None,
+                message_structure=None):
+        """
+        Sends a message to all of a topic's subscribed endpoints.
+        When a messageId is returned, the message has been saved and SNS
+        will attempt to deliver it to the topic's subscribers shortly.
+        The format of the outgoing message to each subscribed endpoint depends
+        on the notification protocol selected.
+        AWS API: Publish_
+
+        :param message: The message to send to the topic.  To send the same
+            message to all transport protocols, include the text of the message
+            as a String value. To send different messages for each transport
+            protocol, set the value of the MessageStructure parameter to json
+            and use a JSON object for the Message parameter.
+        :param subject: Optional parameter to be used as the "Subject" line
+            when the message is delivered to email endpoints.
+        :param topic_arn: The topic to publish to.
+        :param target_arn: Either TopicArn or EndpointArn, but not both.
+        :param message_structure: Should be empty to send the same message to
+            all protocols, or "json" to send a different messages.
+        :return: MessageId - Unique identifier assigned to the published message
+        """
+        params = {
+            "Message": message,
+            "Subject": subject,
+            "TopicArn": topic_arn,
+            "Action": "Publish"
+        }
+        params.update(self.common_params)
+        url = "http://{service}.{region}.amazonaws.com/".format(
+            service=self.service, region=self.region)
+        parse_function = lambda root: root.PublishResult.MessageId.text
+        return self._process(url, params, self.service, parse_function)
