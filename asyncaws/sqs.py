@@ -1,51 +1,37 @@
-from tornado.httpclient import AsyncHTTPClient, HTTPClient
-from tornado.httputil import url_concat
-from lxml import objectify
 import json
 import hashlib
-from core import AWSRequest
+from core import AWS
 
 
-class SQS(object):
-    def __init__(self, access_key, secret_key, region, async=True):
-        self.region = region
-        self.__access_key = access_key
-        self.__secret_key = secret_key
-        self._http = AsyncHTTPClient() if async else HTTPClient()
-        self.service = 'sqs'
-        self.common_params = {
-            "Version": "2012-11-05",
-        }
+class SQS(AWS):
+    """
+    :param access_key: AWS_ACCESS_KEY_ID
+    :param secret_key: AWS_SECRET_ACCESS_KEY
+    :param region: region name as string
+    :param async: True by default, indicates that AsyncHTTPClient should
+        be used. Otherwise HTTPClient (synchronous). Useful for debugging.
+    """
+    service = 'sqs'
+    common_params = {"Version": "2012-11-05"}
 
-    @staticmethod
-    def parse(response):
+    def listen_queue(self, queue_url, wait_time=15, max_messages=1,
+                     visibility_timeout=300):
         """
-        Accepts XML response from AWS and converts it to common Python objects.
+        Retrieves one or more messages from the specified queue.
+        Long poll support is enabled by using the WaitTimeSeconds parameter.
+        AWS API: ReceiveMessage_
 
-        As Python 2 has no "yield from" syntax, all async methods for AWS API
-        have to return Futures. After yielding in coroutine they become
-        Tornado Response objects containing raw XML body returned by AWS.
-        This method helps you to avoid manual response parsing, it accepts
-        response object, detects its type and casts it to common Python object
-        like dict, list or string. Typical usage will be::
-
-            response = yield sqs.send_message(queue, text)
-            # response.body has raw XML from AWS API
-            message_id = sqs.parse(response)
-            # now response is parsed and message_id has a normal Python string.
-
-        :param response: raw response from AWS
-        :return: Response values converted to common Python objects
+        :param queue_url: The URL of the Amazon SQS queue to take action on.
+        :param wait_time: The duration (in seconds) for which the call will
+            wait for a message to arrive in the queue before returning.
+            If a message is available, the call will return sooner.
+        :param max_messages: The maximum number of messages to return.
+        :param visibility_timeout: The duration (in seconds) that the received
+            messages are hidden from subsequent retrieve requests after being
+            retrieved by a ReceiveMessage request.
+        :return: A message or a list of messages.
         """
-        def _parse_GetQueueAttributesResult(root):
-            """helper to parse get_queue_attributes response"""
-            result = {}
-            for attr in root.GetQueueAttributesResult.Attribute:
-                result[str(attr.Name)] = str(attr.Value)
-            return result
-
-        def _parse_ReceiveMessageResult(root):
-            """helper to parse SQS message XML"""
+        def parse_function(root):
             if root.ReceiveMessageResult == '':
                 return None
             message = root.ReceiveMessageResult.Message
@@ -56,37 +42,9 @@ class SQS(object):
                 'Attributes': {}
             }
             for attr in message.Attribute:
-                result['Attributes'][str(attr.Name)] = attr.Value.text
+                result['Attributes'][attr.Name.text] = attr.Value.text
             return result
 
-        response_mapping = {
-            'CreateQueueResult': lambda x: str(x.CreateQueueResult.QueueUrl),
-            'GetQueueAttributesResult': _parse_GetQueueAttributesResult,
-            'ReceiveMessageResult': _parse_ReceiveMessageResult,
-        }
-        root = objectify.fromstring(response.body)
-        for key, extract_func in response_mapping.items():
-            if hasattr(root, key):
-                return extract_func(root)
-        return None
-
-    def listen_queue(self, queue_uri, wait_time=15, max_messages=1,
-                     visibility_timeout=300):
-        """
-        Retrieves one or more messages from the specified queue.
-        Long poll support is enabled by using the WaitTimeSeconds parameter.
-        AWS API: ReceiveMessage_
-
-        :param queue_uri: The URL of the Amazon SQS queue to take action on.
-        :param wait_time: The duration (in seconds) for which the call will
-            wait for a message to arrive in the queue before returning.
-            If a message is available, the call will return sooner.
-        :param max_messages: The maximum number of messages to return.
-        :param visibility_timeout: The duration (in seconds) that the received
-            messages are hidden from subsequent retrieve requests after being
-            retrieved by a ReceiveMessage request.
-        :return: A message or a list of messages.
-        """
         params = {
             "Action": "ReceiveMessage",
             "WaitTimeSeconds": wait_time,
@@ -95,11 +53,7 @@ class SQS(object):
             "AttributeName": "All",
         }
         params.update(self.common_params)
-        full_url = url_concat(queue_uri, params)
-        request = AWSRequest(full_url, service=self.service, region=self.region,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request)
+        return self._process(queue_url, params, self.service, parse_function)
 
     def send_message(self, queue_url, message_body):
         """
@@ -113,13 +67,10 @@ class SQS(object):
         params = {
             "Action": "SendMessage",
             "MessageBody": message_body,
-            }
+        }
         params.update(self.common_params)
-        full_url = url_concat(queue_url, params)
-        request = AWSRequest(full_url, service=self.service, region=self.region,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request)
+        parse_function = lambda root: root.SendMessageResult.MessageId.text
+        return self._process(queue_url, params, self.service, parse_function)
 
     def delete_message(self, queue_url, receipt_handle):
         """
@@ -136,17 +87,16 @@ class SQS(object):
             "ReceiptHandle": receipt_handle,
         }
         params.update(self.common_params)
-        full_url = url_concat(queue_url, params)
-        request = AWSRequest(full_url, service=self.service, region=self.region,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request)
+        parse_function = lambda res: res.ResponseMetadata.RequestId.text
+        return self._process(queue_url, params, self.service, parse_function)
 
     def create_queue(self, queue_name, attributes={}):
         """
         Creates a new queue, or returns the URL of an existing one.
         To successfully create a new queue, a name that is unique within
         the scope of own queues should be provided.
+        Beware: 60 seconds should pass between deleting a queue and creating
+        another with the same name.
         AWS API: CreateQueue_
 
         :param queue_name: The name for the queue to be created.
@@ -163,17 +113,16 @@ class SQS(object):
         url = "http://{service}.{region}.amazonaws.com/".format(
             service=self.service, region=self.region)
         params.update(self.common_params)
-        full_url = url_concat(url, params)
-        request = AWSRequest(full_url, service=self.service, region=self.region,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request)
+        parse_function = lambda res: res.CreateQueueResult.QueueUrl.text
+        return self._process(url, params, self.service, parse_function)
 
     def delete_queue(self, queue_url):
         """
         Deletes the queue specified by the queue URL, regardless of whether
         the queue is empty. If the specified queue does not exist, SQS
         returns a successful response.
+        Beware: 60 seconds should pass between deleting a queue and creating
+        another with the same name.
         AWS API: DeleteQueue_
 
         :param queue_url: The URL of the Amazon SQS queue to take action on.
@@ -181,24 +130,24 @@ class SQS(object):
         """
         params = {
             "Action": "DeleteQueue",
-            }
+        }
         params.update(self.common_params)
-        full_url = url_concat(queue_url, params)
-        request = AWSRequest(full_url, service=self.service, region=self.region,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request)
+
+        parse_function = lambda root: root.ResponseMetadata.RequestId.text
+        return self._process(queue_url, params, self.service, parse_function)
 
     def get_queue_attributes(self, queue_url, attributes=('all',)):
         """
         Gets attributes for the specified queue.
         The following attributes are supported:
+
         All (returns all values), ApproximateNumberOfMessages,
         ApproximateNumberOfMessagesNotVisible,
         VisibilityTimeout, CreatedTimestamp, LastModifiedTimestamp, Policy,
         MaximumMessageSize, MessageRetentionPeriod, QueueArn,
         ApproximateNumberOfMessagesDelayed, DelaySeconds,
         ReceiveMessageWaitTimeSeconds, RedrivePolicy.
+
         AWS API: GetQueueAttributes_
 
         :param queue_url: The URL of the Amazon SQS queue to take action on.
@@ -207,16 +156,17 @@ class SQS(object):
         """
         params = {
             "Action": "GetQueueAttributes",
-            }
+        }
         for i, attr in enumerate(attributes):
             params['AttributeName.%s' % (i + 1)] = attr
-
         params.update(self.common_params)
-        full_url = url_concat(queue_url, params)
-        request = AWSRequest(full_url, service=self.service, region=self.region,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request)
+
+        def parse_function(root):
+            result = {}
+            for attr in root.GetQueueAttributesResult.Attribute:
+                result[attr.Name.text] = attr.Value.text
+            return result
+        return self._process(queue_url, params, self.service, parse_function)
 
     def set_queue_attributes(self, queue_url, attributes={}):
         """
@@ -231,15 +181,13 @@ class SQS(object):
             "Action": "SetQueueAttributes",
         }
         for i, (key, value) in enumerate(attributes.items()):
-            params['Attribute.Name'] = key
-            params['Attribute.Value'] = value
-
+            params['Attribute.%s.Name' % i] = key
+            params['Attribute.%s.Value' % i] = value
         params.update(self.common_params)
-        full_url = url_concat(queue_url, params)
-        request = AWSRequest(full_url, service=self.service, region=self.region,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request, raise_error=False)
+
+        def parse_function(res):
+            import ipdb;ipdb.set_trace()
+        return self._process(queue_url, params, self.service, parse_function)
 
     def add_permission(self, queue_url, account_ids, action_names, label):
         """
@@ -259,24 +207,22 @@ class SQS(object):
         params = {
             "Action": "AddPermission",
             "Label": label,
-            }
+        }
         for i, acc_id in enumerate(account_ids):
             params['AWSAccountId.%s' % (i + 1)] = acc_id
         for i, name in enumerate(action_names):
             params['ActionName.%s' % (i + 1)] = name
-
         params.update(self.common_params)
-        full_url = url_concat(queue_url, params)
-        request = AWSRequest(full_url, service=self.service, region=self.region,
-                             access_key=self.__access_key,
-                             secret_key=self.__secret_key)
-        return self._http.fetch(request)
+
+        def parse_function(res):
+            import ipdb;ipdb.set_trace()
+        return self._process(queue_url, params, self.service, parse_function)
 
     # Helpers
     def allow_sns_topic(self, queue_url, queue_arn, topic_arn):
         """
-        Helper to grant sns topic permission to publish messages to queue.
-        Not an AWS API implementation.
+        Helper method to grant the sns topic a permission for publishing
+        messages to queue. Calls set_queue_attributes under the hood.
 
         :param queue_url: url of queue to get messages
         :param queue_arn: arn of queue to get messages
