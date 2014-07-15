@@ -177,16 +177,23 @@ class SQS(AWS):
         :param queue_url: The URL of the Amazon SQS queue to take action on.
         :return: Request ID
         """
-        params = {
-            "Action": "SetQueueAttributes",
-        }
-        for i, (key, value) in enumerate(attributes.items()):
-            params['Attribute.%s.Name' % i] = key
-            params['Attribute.%s.Value' % i] = value
-        params.update(self.common_params)
+        # bug in SQS attribute list
+        if len(attributes) == 1:
+            params = {
+                "Action": "SetQueueAttributes",
+                "Attribute.Name": attributes.items()[0][0],
+                "Attribute.Value": attributes.items()[0][1]
+            }
+        else:
+            params = {
+                "Action": "SetQueueAttributes"
+            }
+            for i, (key, value) in enumerate(attributes.items()):
+                params['Attribute.%s.Name' % i ] = key
+                params['Attribute.%s.Value' % i] = value
+            params.update(self.common_params)
 
-        def parse_function(res):
-            import ipdb;ipdb.set_trace()
+        parse_function = lambda root: root.ResponseMetadata.RequestId.text
         return self._process(queue_url, params, self.service, parse_function)
 
     def add_permission(self, queue_url, account_ids, action_names, label):
