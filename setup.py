@@ -12,6 +12,7 @@ setup(
     classifiers = [],
     install_requires=[
         "tornado",
-        "lxml"
+        "lxml",
+        "futures"
     ],
 )
