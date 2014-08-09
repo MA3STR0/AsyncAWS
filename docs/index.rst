@@ -7,6 +7,37 @@ AsyncAWS - Asynchronous AWS library in Python
    SQS Reference <sqs>
    SNS Reference <sns>
 
+About
++++++
+
+AsyncAWS is a collection of convenient classes that provide abstract access
+to AWS API in Python. It's killer-feature is efficient asynchronous behaviour
+achieved with simple, sequential code. No callback spaghetti thanks to Python
+"yield" and coroutines. Just look:
+
+::
+
+        queue_url = yield sqs.create_queue("test-queue")
+        message_id = yield sqs.send_message(queue_url, "Hello, World!")
+
+Used within a coroutine, this code will 'pause' on each yield keyword, letting
+IOLoop to run other stuff meanwhile. As soon as AWS will return some response,
+IOLoop will switch back to the "yield" point, and just continue as if "yield" was never there.
+This way can keep the usual sequential coding style, but run the code asynchronously.
+
+Still not convinced? Wondering what is the benefit?
++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+First of all, it's performance. Most of the time our code is waiting for IO, especially
+if it has to deal with remote connections: database, web-APIs, etc. Calling such resources
+asynchronously allows main Python thread to do other stuff in the meanwhile.
+
+Finally, running things like a message queue in a blocking while-True loop is not only
+embarrassing, but also expensive. You pay for every SQS API request, which means
+every time your code asks for new messages in a loop. Instead, AsyncAWS would
+make a long-polling request and wait. It will only re-connect when a message comes,
+or when SQS drops the connection to force you to pay at least something :)
+
 
 FAQ
 ---
