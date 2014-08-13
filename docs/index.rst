@@ -25,6 +25,16 @@ IOLoop to run other stuff meanwhile. As soon as AWS will return some response,
 IOLoop will switch back to the "yield" point, and just continue as if "yield" was never there.
 This way can keep the usual sequential coding style, but run the code asynchronously.
 
+Installation
+++++++++++++
+
+I'm preparing a stable package for PyPI, meanwhile you can install it
+with pip directly from github:
+::
+
+    pip install git+git://github.com/MA3STR0/AsyncAWS.git
+
+
 Still not convinced? Wondering what is the benefit?
 +++++++++++++++++++++++++++++++++++++++++++++++++++
 
