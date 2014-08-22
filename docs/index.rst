@@ -83,6 +83,18 @@ Can't we just use AWS HTTP API directly using requests/urllib/etc?
     We can, but the overhead of building, hashing and signing canonical HTTP requests will be huge.
     Even GET params should be sorted alphabetically. And this lib will do it all for you.
 
+Development and contributions
++++++++++++++++++++++++++++++
+
+AsyncAWS is developed on Github:  https://github.com/MA3STR0/AsyncAWS
+
+Code is maximally PEP8-compliant, well-documented and easy to read, welcoming
+everyone to contribute and send pull requests.
+
+AsyncAWS is extremely easy to extend, there are just 2 points I would kindly ask to follow:
+  * Project currently scores 8.5 with Pylint, the goal is to keep it above 8.
+  * Most of this documentation is auto-generated, so every public method should have a nice docstring.
+
 
 The End.
 ++++++++
