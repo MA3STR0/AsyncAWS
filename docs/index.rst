@@ -34,7 +34,6 @@ with pip directly from github:
 
     pip install git+git://github.com/MA3STR0/AsyncAWS.git
 
-
 Still not convinced? Wondering what is the benefit?
 +++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -94,6 +93,14 @@ everyone to contribute and send pull requests.
 AsyncAWS is extremely easy to extend, there are just 2 points I would kindly ask to follow:
   * Project currently scores 8.5 with Pylint, the goal is to keep it above 8.
   * Most of this documentation is auto-generated, so every public method should have a nice docstring.
+
+License
++++++++
+
+AsyncAWS is released under the terms of the  `MIT license <http://opensource.org/licenses/MIT>`_.
+
+.. literalinclude:: /../LICENSE
+
 
 
 The End.
