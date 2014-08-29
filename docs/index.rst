@@ -94,6 +94,15 @@ AsyncAWS is extremely easy to extend, there are just 2 points I would kindly ask
   * Project currently scores 8.5 with Pylint, the goal is to keep it above 8.
   * Most of this documentation is auto-generated, so every public method should have a nice docstring.
 
+Credits
++++++++
+AsyncAWS is created and maintained by `Anton Caceres <http://caceres.me>`_.
+
+Special thanks to
+
+  * `Stefan Behnel <http://consulting.behnel.de>`_ for architectural advices
+  * `Skoobe <https://skoobe.de>`_ for providing tools for development
+
 License
 +++++++
 
