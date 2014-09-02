@@ -1,5 +1,10 @@
+.. _Home:
+
 AsyncAWS - Asynchronous AWS library in Python
 =============================================
+
+.. contents::
+   :depth: 2
 
 .. toctree::
    :maxdepth: 2
@@ -8,13 +13,11 @@ AsyncAWS - Asynchronous AWS library in Python
    SNS Reference <sns>
 
 About
-+++++
-
+-----
 AsyncAWS is a collection of convenient classes that provide abstract access
 to AWS API in Python. It's killer-feature is efficient asynchronous behaviour
 achieved with simple, sequential code. No callback spaghetti thanks to Python
 "yield" and coroutines. Just look:
-
 ::
 
         queue_url = yield sqs.create_queue("test-queue")
@@ -26,16 +29,16 @@ IOLoop will switch back to the "yield" point, and just continue as if "yield" wa
 This way can keep the usual sequential coding style, but run the code asynchronously.
 
 Installation
-++++++++++++
-
+------------
 I'm preparing a stable package for PyPI, meanwhile you can install it
 with pip directly from github:
 ::
 
     pip install git+git://github.com/MA3STR0/AsyncAWS.git
 
-Still not convinced? Wondering what is the benefit?
-+++++++++++++++++++++++++++++++++++++++++++++++++++
+Still not convinced?
+--------------------
+Wondering what is the benefit?
 
 First of all, it's performance. Most of the time our code is waiting for IO, especially
 if it has to deal with remote connections: database, web-APIs, etc. Calling such resources
@@ -49,16 +52,25 @@ or when SQS drops the connection to force you to pay at least something :)
 
 
 Minimal working example
-+++++++++++++++++++++++
-
+-----------------------
 You need to define main function as a coroutine and schedule it in IOLoop.
 Here is code that creates an SQS queue and sends a message to it:
 
 .. literalinclude:: /../examples/minimal.py
 
+Development and contributions
+-----------------------------
+AsyncAWS is developed on Github:  https://github.com/MA3STR0/AsyncAWS
+
+Code is maximally PEP8-compliant, well-documented and easy to read, welcoming
+everyone to contribute and send pull requests.
+
+AsyncAWS is extremely easy to extend, there are just 2 points I would kindly ask to follow:
+  * Project currently scores 8.5 with Pylint, the goal is to keep it above 8.
+  * Most of this documentation is auto-generated, so every public method should have a nice docstring.
+
 FAQ
 ---
-
 Why yet another Python AWS library, if there is Boto?
     Because Boto is blocking, and asynchronous IO rocks.
 
@@ -82,38 +94,23 @@ Can't we just use AWS HTTP API directly using requests/urllib/etc?
     We can, but the overhead of building, hashing and signing canonical HTTP requests will be huge.
     Even GET params should be sorted alphabetically. And this lib will do it all for you.
 
-Development and contributions
-+++++++++++++++++++++++++++++
-
-AsyncAWS is developed on Github:  https://github.com/MA3STR0/AsyncAWS
-
-Code is maximally PEP8-compliant, well-documented and easy to read, welcoming
-everyone to contribute and send pull requests.
-
-AsyncAWS is extremely easy to extend, there are just 2 points I would kindly ask to follow:
-  * Project currently scores 8.5 with Pylint, the goal is to keep it above 8.
-  * Most of this documentation is auto-generated, so every public method should have a nice docstring.
-
 Credits
-+++++++
+-------
 AsyncAWS is created and maintained by `Anton Caceres <http://caceres.me>`_.
 
 Special thanks to
 
-  * `Stefan Behnel <http://consulting.behnel.de>`_ for architectural advices
-  * `Skoobe <https://skoobe.de>`_ for providing tools for development
+* `Stefan Behnel <http://consulting.behnel.de>`_ for architectural advices
+* `Skoobe <https://skoobe.de>`_ for providing tools for development
 
 License
-+++++++
-
+-------
 AsyncAWS is released under the terms of the  `MIT license <http://opensource.org/licenses/MIT>`_.
 
 .. literalinclude:: /../LICENSE
 
-
-
 The End.
 ++++++++
-
+* Home_
 * :ref:`genindex`
 
