@@ -116,6 +116,7 @@ class AWS(object):
         final_result = Future()
 
         def inject_result(future):
+            """callback to connect AsyncHTTPClient future with parse function"""
             raw_response = future.result().body
             xml_root = objectify.fromstring(raw_response)
             final_result.set_result(parse_function(xml_root))

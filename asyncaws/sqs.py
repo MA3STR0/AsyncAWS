@@ -1,6 +1,6 @@
 import json
 import hashlib
-from core import AWS
+from asyncaws.core import AWS
 
 
 class SQS(AWS):
@@ -90,7 +90,7 @@ class SQS(AWS):
         parse_function = lambda res: res.ResponseMetadata.RequestId.text
         return self._process(queue_url, params, self.service, parse_function)
 
-    def create_queue(self, queue_name, attributes={}):
+    def create_queue(self, queue_name, attributes=None):
         """
         Creates a new queue, or returns the URL of an existing one.
         To successfully create a new queue, a name that is unique within
@@ -102,6 +102,8 @@ class SQS(AWS):
         :param queue_name: The name for the queue to be created.
         :return: QueueUrl - the URL for the created Amazon SQS queue.
         """
+        if attributes is None:
+            attributes = {}
         params = {
             "Action": "CreateQueue",
             "QueueName": queue_name,
@@ -168,7 +170,7 @@ class SQS(AWS):
             return result
         return self._process(queue_url, params, self.service, parse_function)
 
-    def set_queue_attributes(self, queue_url, attributes={}):
+    def set_queue_attributes(self, queue_url, attributes=None):
         """
         Sets the value of one or more queue attributes.
         AWS API: SetQueueAttributes_
@@ -177,6 +179,8 @@ class SQS(AWS):
         :param queue_url: The URL of the Amazon SQS queue to take action on.
         :return: Request ID
         """
+        if attributes is None:
+            attributes = {}
         params = {
             "Action": "SetQueueAttributes"
         }

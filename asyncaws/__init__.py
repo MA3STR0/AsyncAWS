@@ -1,2 +1,2 @@
-from sqs import SQS
-from sns import SNS
+from asyncaws.sqs import SQS
+from asyncaws.sns import SNS

@@ -1,4 +1,4 @@
-from core import AWS
+from asyncaws.core import AWS
 
 
 class SNS(AWS):
