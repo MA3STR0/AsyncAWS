@@ -104,6 +104,7 @@ class SQS(AWS):
         """
         if attributes is None:
             attributes = {}
+        assert isinstance(attributes, dict)
         params = {
             "Action": "CreateQueue",
             "QueueName": queue_name,
@@ -156,6 +157,7 @@ class SQS(AWS):
         :param attributes: A list of attributes to retrieve, ['all'] by default.
         :return: A map of attributes to the respective values.
         """
+        assert isinstance(attributes, (list, set, tuple))
         params = {
             "Action": "GetQueueAttributes",
         }
@@ -181,6 +183,7 @@ class SQS(AWS):
         """
         if attributes is None:
             attributes = {}
+        assert isinstance(attributes, dict)
         params = {
             "Action": "SetQueueAttributes"
         }
@@ -207,6 +210,8 @@ class SQS(AWS):
         :param label: The unique identification of the permission.
         :return: Request ID
         """
+        assert isinstance(account_ids, (list, set, tuple))
+        assert isinstance(action_names, (list, set, tuple))
         params = {
             "Action": "AddPermission",
             "Label": label,
@@ -217,8 +222,7 @@ class SQS(AWS):
             params['ActionName.%s' % (i + 1)] = name
         params.update(self.common_params)
 
-        def parse_function(res):
-            import ipdb;ipdb.set_trace()
+        parse_function = lambda root: root.ResponseMetadata.RequestId.text
         return self._process(queue_url, params, self.service, parse_function)
 
     # Helpers
