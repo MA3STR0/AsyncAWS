@@ -105,6 +105,7 @@ class AWS(object):
         self.__access_key = access_key
         self.__secret_key = secret_key
         self._http = AsyncHTTPClient() if async else HTTPClient()
+        self._async = async
 
     def _process(self, url, params, service, parse_function):
         """Prepare request and result parsing callback"""
@@ -112,6 +113,12 @@ class AWS(object):
         request = AWSRequest(full_url, service=service, region=self.region,
                              access_key=self.__access_key,
                              secret_key=self.__secret_key)
+        if not self._async:
+            http_response = self._http.fetch(request)
+            xml_root = objectify.fromstring(http_response.body)
+            response = parse_function(xml_root)
+            return response
+
         ioloop = IOLoop.current()
         final_result = Future()
 
