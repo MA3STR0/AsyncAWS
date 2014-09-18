@@ -35,6 +35,27 @@ class SNS(AWS):
         parse_function = lambda root: root.CreateTopicResult.TopicArn.text
         return self._process(url, params, self.service, parse_function)
 
+    def delete_topic(self, topic_arn):
+        """
+        Deletes a topic and all its subscriptions.
+        Deleting a topic might prevent some messages previously sent to the
+        topic from being delivered to subscribers. This action is idempotent,
+        so deleting a topic that does not exist does not result in an error.
+        AWS API: DeleteTopic_
+
+        :param topic_arn: The ARN of the topic to delete
+        :return: RequestId
+        """
+        params = {
+            "TopicArn": topic_arn,
+            "Action": "DeleteTopic"
+        }
+        params.update(self.common_params)
+        url = "http://{service}.{region}.amazonaws.com/".format(
+            service=self.service, region=self.region)
+        parse_function = lambda root: root.ResponseMetadata.RequestId.text
+        return self._process(url, params, self.service, parse_function)
+
     def subscribe(self, endpoint, topic_arn, protocol):
         """
         Prepares to subscribe an endpoint by sending the endpoint
