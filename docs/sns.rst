@@ -36,4 +36,4 @@ API documentation
 .. _Subscribe:  http://docs.aws.amazon.com/sns/latest/APIReference/API_Subscribe.html
 .. _ConfirmSubscription: http://docs.aws.amazon.com/sns/latest/APIReference/API_ConfirmSubscription.html
 .. _Publish: http://docs.aws.amazon.com/sns/latest/APIReference/API_ConfirmSubscription.html
-
+.. _DeleteTopic: http://docs.aws.amazon.com/sns/latest/APIReference/API_DeleteTopic.html
