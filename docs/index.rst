@@ -66,7 +66,7 @@ Code is maximally PEP8-compliant, well-documented and easy to read, welcoming
 everyone to contribute and send pull requests.
 
 AsyncAWS is extremely easy to extend, there are just 2 points I would kindly ask to follow:
-  * Project currently scores 8.5 with Pylint, the goal is to keep it above 8.
+  * Project currently scores 9.6 with Pylint, the goal is to keep it above 8.
   * Most of this documentation is auto-generated, so every public method should have a nice docstring.
 
 FAQ

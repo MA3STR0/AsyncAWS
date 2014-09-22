@@ -1,3 +1,4 @@
+"""Module that covers SQS API"""
 import json
 import hashlib
 from asyncaws.core import AWS

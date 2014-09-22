@@ -1,4 +1,6 @@
+"""Module that covers SNS API"""
 from asyncaws.core import AWS
+import json
 
 
 class SNS(AWS):
@@ -123,7 +125,8 @@ class SNS(AWS):
             message to all transport protocols, include the text of the message
             as a String value. To send different messages for each transport
             protocol, set the value of the MessageStructure parameter to json
-            and use a JSON object for the Message parameter.
+            and use a JSON object for the Message parameter. If Python list or
+            dict is passed, it will be converted to json automatically.
         :param subject: Optional parameter to be used as the "Subject" line
             when the message is delivered to email endpoints.
         :param topic_arn: The topic to publish to.
@@ -132,12 +135,23 @@ class SNS(AWS):
             all protocols, or "json" to send a different messages.
         :return: MessageId - Unique identifier assigned to the published message
         """
+        assert message_structure in (None, 'json')
+        assert topic_arn or target_arn
         params = {
             "Message": message,
             "Subject": subject,
-            "TopicArn": topic_arn,
             "Action": "Publish"
         }
+        # convert message to json if needed
+        if message_structure == 'json':
+            if not isinstance(message, (str, unicode)):
+                params['Message'] = json.dumps(message)
+            params['MessageStructure'] = message_structure
+        # set topic_arn or target_arn
+        if topic_arn:
+            params["TopicArn"] = topic_arn
+        else:
+            params["TargetArn"] = target_arn
         params.update(self.common_params)
         url = "http://{service}.{region}.amazonaws.com/".format(
             service=self.service, region=self.region)
