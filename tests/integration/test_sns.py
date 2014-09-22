@@ -22,3 +22,5 @@ class TestSQS(AsyncTestCase):
     @gen_test
     def test_topic_actions(self):
         self.assertTrue(self.topic_arn.startswith('arn:'))
+        mid = self.sns.publish("Hello, World!", "Test Subject", self.topic_arn)
+        self.assertIsInstance(mid, str)
