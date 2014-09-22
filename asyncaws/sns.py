@@ -83,7 +83,7 @@ class SNS(AWS):
         parse_function = lambda root: root.SubscribeResult.SubscriptionArn.text
         return self._process(url, params, self.service, parse_function)
 
-    def confirm_subscription(self, topic_arn, token):
+    def confirm_subscription(self, topic_arn, token, auth_unsubscribe=False):
         """
         Verifies an endpoint owner's intent to receive messages by validating
         the token sent to the endpoint by an earlier Subscribe action.
@@ -93,20 +93,21 @@ class SNS(AWS):
 
         :param topic_arn: The ARN of the topic for subscription.
         :param token: Short-lived token returned during the Subscribe action.
+        :param auth_unsubscribe: Boolean, disallows unauthenticated
+               unsubscribes of the subscription.
         :return: SubscriptionArn - The ARN of the created subscription.
         """
         params = {
             "TopicArn": topic_arn,
             "Token": token,
-            "Action": "ConfirmSubscription"
+            "Action": "ConfirmSubscription",
+            "AuthenticateOnUnsubscribe": str(auth_unsubscribe).lower()
         }
         params.update(self.common_params)
         url = "http://{service}.{region}.amazonaws.com/".format(
             service=self.service, region=self.region)
-
-        def parse_function():
-            import ipdb;ipdb.set_trace()
-        return self._process(url, params, self.service, parse_function)
+        parse_func = lambda r: r.ConfirmSubscriptionResult.SubscriptionArn.text
+        return self._process(url, params, self.service, parse_func)
 
     def publish(self, message, subject, topic_arn, target_arn=None,
                 message_structure=None):
